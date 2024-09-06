@@ -1,5 +1,5 @@
 const express = require('express');
-const ffmpeg = require('fluent-ffmpeg');
+const { createFFmpeg, fetchFile } = require('@ffmpeg/ffmpeg');
 const sharp = require('sharp');
 const fastq = require('fastq');
 const cors = require('cors');
@@ -13,69 +13,79 @@ const OUTPUT_WIDTH = 128;
 const OUTPUT_HEIGHT = 72;
 const TARGET_ASPECT_RATIO = 16 / 9;
 
+// Create the FFmpeg instance
+const ffmpeg = createFFmpeg({ log: true });
+
+// Initialize FFmpeg instance
+const ensureFFmpegIsLoaded = async () => {
+  if (!ffmpeg.isLoaded()) {
+    await ffmpeg.load();
+  }
+};
+
+// Function to extract the main color (hue) of an image
 const getMainHue = async (imageBuffer) => {
   const { dominant } = await sharp(imageBuffer).stats();
   return `rgb(${dominant.r},${dominant.g},${dominant.b})`;
 };
 
+// Function to process the video and generate a thumbnail
 const processVideoThumbnail = async (url) => {
-  return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(url, (err, metadata) => {
-      if (err) return reject(err);
+  await ensureFFmpegIsLoaded();
 
-      const videoStream = metadata.streams.find((stream) => stream.codec_type === 'video');
-      if (!videoStream) return reject(new Error('No video stream found'));
+  const videoFile = await fetchFile(url);
+  const inputFileName = 'input.mp4';
+  const outputFileName = 'thumbnail.jpg';
 
-      const { width, height } = videoStream;
-      const aspectRatio = width / height;
+  // Write the video file to FFmpeg's virtual file system
+  ffmpeg.FS('writeFile', inputFileName, videoFile);
 
-      const requiresLetterboxing = aspectRatio !== TARGET_ASPECT_RATIO;
+  // Use FFmpeg to extract a single frame from the 1-second mark
+  await ffmpeg.run('-i', inputFileName, '-ss', '00:00:01.000', '-frames:v', '1', outputFileName);
 
-      const ffmpegCommand = ffmpeg(url)
-        .on('error', reject)
-        .inputOptions(['-ss 00:00:01.000'])
-        .outputOptions(['-frames:v 1'])
-        .format('image2pipe')
-        .pipe();
+  // Read the output file (thumbnail) from the virtual file system
+  const thumbnailData = ffmpeg.FS('readFile', outputFileName);
+  const thumbnailBuffer = Buffer.from(thumbnailData);
 
-      const chunks = [];
-      ffmpegCommand.on('data', (chunk) => chunks.push(chunk));
+  // Get video metadata to calculate aspect ratio
+  const metadata = await ffmpeg.run('-i', inputFileName);
+  const regex = /(\d+)x(\d+)/;
+  const match = regex.exec(metadata);
+  const [width, height] = match ? [parseInt(match[1], 10), parseInt(match[2], 10)] : [0, 0];
 
-      ffmpegCommand.on('end', async () => {
-        const thumbnailBuffer = Buffer.concat(chunks);
+  const aspectRatio = width / height;
+  const requiresLetterboxing = aspectRatio !== TARGET_ASPECT_RATIO;
 
-        try {
-          let outputBuffer;
-          if (requiresLetterboxing) {
-            const mainHue = await getMainHue(thumbnailBuffer);
-            outputBuffer = await sharp(thumbnailBuffer)
-              .resize({
-                width: OUTPUT_WIDTH,
-                height: OUTPUT_HEIGHT,
-                fit: sharp.fit.contain,
-                background: mainHue,
-              })
-              .jpeg()
-              .toBuffer();
-          } else {
-            outputBuffer = await sharp(thumbnailBuffer)
-              .resize({
-                width: OUTPUT_WIDTH,
-                height: OUTPUT_HEIGHT,
-              })
-              .jpeg()
-              .toBuffer();
-          }
+  let outputBuffer;
 
-          resolve(outputBuffer);
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
-  });
+  try {
+    if (requiresLetterboxing) {
+      const mainHue = await getMainHue(thumbnailBuffer);
+      outputBuffer = await sharp(thumbnailBuffer)
+        .resize({
+          width: OUTPUT_WIDTH,
+          height: OUTPUT_HEIGHT,
+          fit: sharp.fit.contain,
+          background: mainHue,
+        })
+        .jpeg()
+        .toBuffer();
+    } else {
+      outputBuffer = await sharp(thumbnailBuffer)
+        .resize({
+          width: OUTPUT_WIDTH,
+          height: OUTPUT_HEIGHT,
+        })
+        .jpeg()
+        .toBuffer();
+    }
+    return outputBuffer;
+  } catch (err) {
+    throw err;
+  }
 };
 
+// Queue worker function to process video tasks
 const worker = async (task, cb) => {
   try {
     const thumbnailBuffer = await processVideoThumbnail(task.url);
@@ -85,8 +95,10 @@ const worker = async (task, cb) => {
   }
 };
 
+// Create a queue with 10 concurrent workers
 const queue = fastq(worker, 10);
 
+// Route to handle thumbnail generation
 app.post('/generate-thumbnail', (req, res) => {
   const { url, type } = req.body;
   if (!url || !type || type !== 'video') {
@@ -102,6 +114,7 @@ app.post('/generate-thumbnail', (req, res) => {
   });
 });
 
+// Export the app to be used as a serverless function or standalone server
 module.exports = (req, res) => {
-  app(req, res); // Hand over the Express app to Vercel's handler
+  app(req, res);
 };
