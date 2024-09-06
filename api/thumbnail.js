@@ -7,7 +7,12 @@ const cors = require('cors');
 const app = express();
 
 app.use(express.json());
-app.use(cors());
+// Allow requests from any origin
+app.use(cors({
+    origin: '*',  // Allow all origins, or specify allowed origins like 'https://example.com'
+    methods: ['GET', 'POST', 'OPTIONS'],  // Allow these methods
+    allowedHeaders: ['Content-Type', 'Authorization'],  // Allow these headers
+  }));
 
 const OUTPUT_WIDTH = 128;
 const OUTPUT_HEIGHT = 72;
