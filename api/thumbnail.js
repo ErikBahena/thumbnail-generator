@@ -3,7 +3,6 @@ const ffmpeg = require('fluent-ffmpeg');
 const sharp = require('sharp');
 const fastq = require('fastq');
 const cors = require('cors');
-const { VercelRequest, VercelResponse } = require('@vercel/node');
 
 const app = express();
 

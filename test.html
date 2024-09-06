@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thumbnail Generator</title>
+</head>
+<body>
+    <h1>Video & Audio Thumbnail Generator</h1>
+
+    <form id="thumbnailForm">
+        <label for="mediaUrl">Media URL:</label><br>
+        <input type="text" id="mediaUrl" name="mediaUrl" size="100" value="https://f005.backblazeb2.com/file/invintus-client-media/1000000000/8c8a91f0f7750903a8e93daec2d9928fb977435b.mp4"><br><br>
+
+        <label for="mediaType">Media Type:</label><br>
+        <select id="mediaType" name="mediaType">
+            <option value="video">Video</option>
+            <option value="audio">Audio</option>
+        </select><br><br>
+
+        <input type="submit" value="Generate Thumbnail">
+    </form>
+
+    <h2>Thumbnail Result:</h2>
+    <img id="thumbnailImage" src="" alt="Generated Thumbnail" style="max-width: 600px; display: none;">
+
+    <script>
+        const form = document.getElementById('thumbnailForm');
+        const thumbnailImage = document.getElementById('thumbnailImage');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const mediaUrl = document.getElementById('mediaUrl').value;
+            const mediaType = document.getElementById('mediaType').value;
+
+            try {
+                const response = await fetch('https://thumbnail-generator-phi.vercel.app/generate-thumbnail', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: mediaUrl,
+                        type: mediaType
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to generate thumbnail');
+                }
+
+                const blob = await response.blob();
+                const objectURL = URL.createObjectURL(blob);
+
+                // Display the generated thumbnail
+                thumbnailImage.src = objectURL;
+                thumbnailImage.style.display = 'block';
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
