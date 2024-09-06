@@ -62,9 +62,7 @@
             },
           );
 
-          if (!response.ok) {
-            throw new Error('Failed to generate thumbnail');
-          }
+          console.log(response);
 
           const blob = await response.blob();
           const objectURL = URL.createObjectURL(blob);

@@ -1,5 +1,4 @@
 const express = require('express');
-const { createFFmpeg, fetchFile } = require('@ffmpeg/ffmpeg');
 const sharp = require('sharp');
 const fastq = require('fastq');
 const cors = require('cors');
@@ -25,14 +24,9 @@ const OUTPUT_WIDTH = 128;
 const OUTPUT_HEIGHT = 72;
 const TARGET_ASPECT_RATIO = 16 / 9;
 
-// Create the FFmpeg instance
-const ffmpeg = createFFmpeg({ log: true });
-
-// Initialize FFmpeg instance
-const ensureFFmpegIsLoaded = async () => {
-  if (!ffmpeg.isLoaded()) {
-    await ffmpeg.load();
-  }
+const loadFFmpeg = async () => {
+  const { createFFmpeg, fetchFile } = await import('@ffmpeg/ffmpeg');
+  return { createFFmpeg, fetchFile };
 };
 
 // Function to extract the main color (hue) of an image
@@ -43,7 +37,8 @@ const getMainHue = async (imageBuffer) => {
 
 // Function to process the video and generate a thumbnail
 const processVideoThumbnail = async (url) => {
-  await ensureFFmpegIsLoaded();
+  const { createFFmpeg, fetchFile } = await loadFFmpeg();
+  const ffmpeg = createFFmpeg({ log: true });
 
   const videoFile = await fetchFile(url);
   const inputFileName = 'input.mp4';
