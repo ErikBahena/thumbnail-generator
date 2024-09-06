@@ -9,8 +9,14 @@
     "routes": [
       {
         "src": "/generate-thumbnail",
-        "dest": "/api/thumbnail.js"
+        "dest": "/api/thumbnail.js",
+        "headers": {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization"
+        }
       }
     ]
   }
+  
   

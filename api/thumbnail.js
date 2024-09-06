@@ -6,17 +6,20 @@ const cors = require('cors');
 
 const app = express();
 
-app.use(express.json());
-// Allow requests from any origin
+// Explicitly allow all origins
 app.use(
   cors({
-    origin: '*', // Allow all origins, or specify allowed origins like 'https://example.com'
-    methods: ['GET', 'POST', 'OPTIONS'], // Allow these methods
-    allowedHeaders: ['Content-Type', 'Authorization'], // Allow these headers
+    origin: '*', // Allow all origins
+    methods: ['GET', 'POST', 'OPTIONS'], // Allow GET, POST, OPTIONS
+    allowedHeaders: ['Content-Type', 'Authorization'], // Allow headers
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   }),
 );
 
-app.options('*', cors()); // Enable pre-flight request for all routes
+app.options('*', cors()); // Handle preflight requests
+
+app.use(express.json());
 
 const OUTPUT_WIDTH = 128;
 const OUTPUT_HEIGHT = 72;
