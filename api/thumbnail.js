@@ -8,11 +8,15 @@ const app = express();
 
 app.use(express.json());
 // Allow requests from any origin
-app.use(cors({
-    origin: '*',  // Allow all origins, or specify allowed origins like 'https://example.com'
-    methods: ['GET', 'POST', 'OPTIONS'],  // Allow these methods
-    allowedHeaders: ['Content-Type', 'Authorization'],  // Allow these headers
-  }));
+app.use(
+  cors({
+    origin: '*', // Allow all origins, or specify allowed origins like 'https://example.com'
+    methods: ['GET', 'POST', 'OPTIONS'], // Allow these methods
+    allowedHeaders: ['Content-Type', 'Authorization'], // Allow these headers
+  }),
+);
+
+app.options('*', cors()); // Enable pre-flight request for all routes
 
 const OUTPUT_WIDTH = 128;
 const OUTPUT_HEIGHT = 72;
@@ -46,7 +50,15 @@ const processVideoThumbnail = async (url) => {
   ffmpeg.FS('writeFile', inputFileName, videoFile);
 
   // Use FFmpeg to extract a single frame from the 1-second mark
-  await ffmpeg.run('-i', inputFileName, '-ss', '00:00:01.000', '-frames:v', '1', outputFileName);
+  await ffmpeg.run(
+    '-i',
+    inputFileName,
+    '-ss',
+    '00:00:01.000',
+    '-frames:v',
+    '1',
+    outputFileName,
+  );
 
   // Read the output file (thumbnail) from the virtual file system
   const thumbnailData = ffmpeg.FS('readFile', outputFileName);
@@ -56,7 +68,9 @@ const processVideoThumbnail = async (url) => {
   const metadata = await ffmpeg.run('-i', inputFileName);
   const regex = /(\d+)x(\d+)/;
   const match = regex.exec(metadata);
-  const [width, height] = match ? [parseInt(match[1], 10), parseInt(match[2], 10)] : [0, 0];
+  const [width, height] = match
+    ? [parseInt(match[1], 10), parseInt(match[2], 10)]
+    : [0, 0];
 
   const aspectRatio = width / height;
   const requiresLetterboxing = aspectRatio !== TARGET_ASPECT_RATIO;
