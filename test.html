@@ -1,79 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Thumbnail Generator</title>
-  </head>
-  <body>
-    <h1>Video & Audio Thumbnail Generator</h1>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thumbnail Generator Demo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    body {
+      background-color: #f8f9fa;
+      padding: 20px;
+    }
+    .thumbnail-container {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .metrics-container {
+      margin-top: 20px;
+    }
+    .metric {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
 
-    <form id="thumbnailForm">
-      <label for="mediaUrl">Media URL:</label><br />
-      <input
-        type="text"
-        id="mediaUrl"
-        name="mediaUrl"
-        size="100"
-        value="https://f005.backblazeb2.com/file/invintus-client-media/1000000000/8c8a91f0f7750903a8e93daec2d9928fb977435b.mp4"
-      /><br /><br />
+  <div class="container">
+    <h1 class="text-center mb-5">Thumbnail Generator API Demo</h1>
 
-      <label for="mediaType">Media Type:</label><br />
-      <select id="mediaType" name="mediaType">
-        <option value="video">Video</option>
-        <option value="audio">Audio</option></select
-      ><br /><br />
-
-      <input type="submit" value="Generate Thumbnail" />
+    <!-- Input form to request thumbnail -->
+    <form id="thumbnail-form" class="mb-5">
+      <div class="mb-3">
+        <label for="videoUrl" class="form-label">Enter Video URL:</label>
+        <input type="text" class="form-control" id="videoUrl" placeholder="Enter the video URL here...">
+      </div>
+      <button type="submit" class="btn btn-primary">Generate Thumbnail</button>
     </form>
 
-    <h2>Thumbnail Result:</h2>
-    <img
-      id="thumbnailImage"
-      src=""
-      alt="Generated Thumbnail"
-      style="max-width: 600px; display: none"
-    />
+    <!-- Display the generated thumbnail -->
+    <div class="thumbnail-container" id="thumbnail-container">
+      <h3 class="text-center">Thumbnail will be displayed here</h3>
+    </div>
 
-    <script>
-      const form = document.getElementById('thumbnailForm');
-      const thumbnailImage = document.getElementById('thumbnailImage');
+    <!-- Display the metrics below the thumbnail -->
+    <div class="metrics-container" id="metrics-container">
+      <h4 class="text-center">API Metrics</h4>
+      <p><span class="metric">Thumbnail Size:</span> <span id="thumbnailSize">N/A</span></p>
+      <p><span class="metric">Redis Cache Status:</span> <span id="cacheStatus">N/A</span></p>
+      <p><span class="metric">Time Taken:</span> <span id="timeTaken">N/A</span></p>
+    </div>
+  </div>
 
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
+  <script>
+    document.getElementById('thumbnail-form').addEventListener('submit', async function(event) {
+      event.preventDefault();
 
-        const mediaUrl = document.getElementById('mediaUrl').value;
-        const mediaType = document.getElementById('mediaType').value;
+      const videoUrl = document.getElementById('videoUrl').value;
+      if (!videoUrl) {
+        alert("Please enter a valid video URL.");
+        return;
+      }
 
-        try {
-          const response = await fetch(
-            'https://thumbnail-generator-phi.vercel.app/generate-thumbnail',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                Authorization: 'Bearer 123',
-              },
-              body: JSON.stringify({
-                url: mediaUrl,
-                type: mediaType,
-              }),
-            },
-          );
+      // Clear previous results
+      document.getElementById('thumbnail-container').innerHTML = '<h3 class="text-center">Loading...</h3>';
+      document.getElementById('thumbnailSize').innerText = 'N/A';
+      document.getElementById('cacheStatus').innerText = 'N/A';
+      document.getElementById('timeTaken').innerText = 'N/A';
 
-          console.log(response);
+      try {
+        // Step 1: Check cache status before making the thumbnail request
+        const cacheResponse = await axios.get('http://localhost:3000/cache-status', {
+          params: { url: videoUrl }
+        });
 
-          const blob = await response.blob();
-          const objectURL = URL.createObjectURL(blob);
+        const cacheHit = cacheResponse.data.cacheHit;
+        document.getElementById('cacheStatus').innerText = cacheHit ? 'Hit' : 'Miss';
 
-          // Display the generated thumbnail
-          thumbnailImage.src = objectURL;
-          thumbnailImage.style.display = 'block';
-        } catch (error) {
-          console.error('Error:', error);
-        }
-      });
-    </script>
-  </body>
+        const startTime = performance.now(); // Start timing
+
+        // Step 2: Fetch the thumbnail and metrics from the API
+        const thumbnailResponse = await axios.get(`http://localhost:3000/thumbnail`, {
+          params: { url: videoUrl },
+          responseType: 'blob'  // Expect the image as a binary blob
+        });
+
+        const endTime = performance.now(); // End timing
+        const timeTaken = endTime - startTime; // Time in milliseconds
+
+        // Convert the blob into a URL and display the image
+        const imageUrl = URL.createObjectURL(thumbnailResponse.data);
+        document.getElementById('thumbnail-container').innerHTML = `<img src="${imageUrl}" class="img-fluid" alt="Thumbnail">`;
+
+        // Update the thumbnail size (from response content-length)
+        const thumbnailSize = thumbnailResponse.headers['content-length'];
+        document.getElementById('thumbnailSize').innerText = formatBytes(thumbnailSize);
+
+        // Display the time taken to fetch the thumbnail
+        document.getElementById('timeTaken').innerText = `${(timeTaken / 1000).toFixed(2)} seconds`;
+
+      } catch (error) {
+        alert("Error fetching the thumbnail or metrics.");
+        console.error(error);
+      }
+    });
+
+    // Helper function to convert bytes into a human-readable format
+    function formatBytes(bytes, decimals = 2) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+  </script>
+
+</body>
 </html>
